@@ -2,201 +2,118 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>子乍弄鸟尊数字藏品展示 - 毕业设计</title>
-    <!-- 改用 ES Module 方式引入 Three.js 及控制器 -->
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-        }
-    }
-    </script>
-    <!-- 引入Swiper（滑动插件） -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <!-- 关键：添加视口适配，解决手机端布局问题 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>子乍弄鸟尊 3D 展示</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { overflow: hidden; font-family: "Microsoft YaHei"; }
-        /* 3D容器占满屏幕 */
-        #container {
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            background-color: #f0f0f0;
+        }
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100vw;
             height: 100vh;
-            position: relative;
-        }
-        /* 滑动介绍面板 */
-        .swiper-container {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90%;
-            height: 180px;
-            background: rgba(0,0,0,0.7);
-            border-radius: 10px;
-            padding: 10px;
-            color: #fff;
-        }
-        .swiper-slide {
-            text-align: center;
-            padding: 10px;
-        }
-        .swiper-slide img {
-            width: 100px;
-            height: 80px;
-            object-fit: cover;
-            margin-bottom: 10px;
-        }
-        /* 提示文字 */
-        .tips {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #fff;
-            font-size: 14px;
-            background: rgba(0,0,0,0.5);
-            padding: 5px 10px;
-            border-radius: 5px;
-        }
-        /* 重置视角按钮（加分项） */
-        .reset-btn {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 5px 10px;
-            background: rgba(0,0,0,0.5);
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
         }
     </style>
+    <!-- 引入 Three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
-    <div id="container">
-        <div class="tips">鼠标/手指拖拽旋转 | 滚轮/双指缩放</div>
-        <button class="reset-btn" onclick="resetCamera()">重置视角</button>
-        <!-- 滑动介绍面板 -->
-        <div class="swiper-container">
-            <div class="swiper-wrapper">
-                <!-- 第1页介绍：子乍弄鸟尊基础信息 -->
-                <div class="swiper-slide">
-                    <img src="detail1.jpg" alt="子乍弄鸟尊整体外观">
-                    <p>子乍弄鸟尊 - 春秋晚期青铜礼器</p>
-                    <p>通高26.5厘米，重1.55公斤</p>
-                </div>
-                <!-- 第2页介绍：造型特点 -->
-                <div class="swiper-slide">
-                    <img src="detail2.jpg" alt="子乍弄鸟尊造型细节">
-                    <p>造型特点：整体作伫立的鸮鸟形</p>
-                    <p>昂首挺胸，双目圆睁，羽纹清晰</p>
-                </div>
-                <!-- 第3页介绍：工艺与馆藏 -->
-                <div class="swiper-slide">
-                    <img src="detail3.jpg" alt="子乍弄鸟尊铭文细节">
-                    <p>工艺：通体错金，铭文“子乍弄鸟”</p>
-                    <p>现存于山西博物院，晋系青铜代表</p>
-                </div>
-            </div>
-            <!-- 滑动指示器 -->
-            <div class="swiper-pagination"></div>
-        </div>
-    </div>
+    <div id="canvas-container"></div>
 
-    <script type="module">
-        // 1. 从模块导入 Three.js 和控制器
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
-        // 2. 初始化3D场景
+    <script>
+        // 1. 创建场景
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        scene.background = new THREE.Color(0xf0f0f0);
+
+        // 2. 创建相机（优化手机端视角）
+        const camera = new THREE.PerspectiveCamera(
+            75, // 视角
+            window.innerWidth / window.innerHeight, // 宽高比
+            0.1, // 近裁剪面
+            1000 // 远裁剪面
+        );
+        // 调整相机位置，确保看向模型中心
+        camera.position.set(0, 1, 5); // 手机端合适的初始位置
+        camera.lookAt(0, 0, 0); // 强制相机看向坐标原点
+
+        // 3. 创建渲染器
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        document.getElementById('container').appendChild(renderer.domElement);
+        renderer.setPixelRatio(window.devicePixelRatio); // 适配手机像素
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // 3. 添加轨道控制器（实现旋转/缩放）
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; // 阻尼效果，更顺滑
+        // 4. 添加轨道控制器（支持旋转/缩放）
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; // 平滑阻尼效果
         controls.dampingFactor = 0.05;
-        controls.screenSpacePanning = false;
-        controls.minDistance = 1; // 最小缩放距离
+        controls.target.set(0, 0, 0); // 控制器围绕原点旋转
+        controls.minDistance = 2; // 最小缩放距离
         controls.maxDistance = 10; // 最大缩放距离
-        controls.maxPolarAngle = Math.PI; // 支持360°旋转
 
-        // 4. 添加光源（让模型更清晰）
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        // 5. 添加光源
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
         directionalLight.position.set(5, 5, 5);
         scene.add(directionalLight);
-        // 补加底部光源，避免模型底部暗
-        const bottomLight = new THREE.DirectionalLight(0xffffff, 0.4);
-        bottomLight.position.set(0, -5, 0);
-        scene.add(bottomLight);
 
-        // 5. 加载子乍弄鸟尊3D模型（★★★替换成你的模型文件名★★★）
-        const loader = new GLTFLoader();
+        // 6. 加载GLB模型（核心：强制居中）
+        const loader = new THREE.GLTFLoader();
         loader.load(
-            // 模型路径：glb格式写「子乍弄鸟尊.glb」，gltf格式写「子乍弄鸟尊.gltf」
-            '子乍弄鸟尊.glb',
+            '子乍弄鸟尊.glb', // 模型文件路径
             function (gltf) {
                 const model = gltf.scene;
-                // 调整模型大小（根据实际模型缩放，0.5缩小/2放大）
-                model.scale.set(1, 1, 1); 
-                model.position.set(0, 0, 0); // 居中显示
+                
+                // 关键：重置模型位置到坐标原点
+                model.position.set(0, 0, 0);
+                model.rotation.set(0, 0, 0); // 重置旋转
+                model.scale.set(1, 1, 1); // 重置缩放
+
+                // 可选：自动调整模型大小（防止模型过大/过小）
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                const maxSize = Math.max(size.x, size.y, size.z);
+                const scale = 2 / maxSize; // 统一缩放至合适大小
+                model.scale.set(scale, scale, scale);
+
                 scene.add(model);
             },
             function (xhr) {
-                // 加载进度（可选）
+                // 加载进度
                 console.log((xhr.loaded / xhr.total * 100) + '% loaded');
             },
             function (error) {
-                // 加载失败提示（新手友好）
+                // 加载错误
                 console.error('模型加载失败：', error);
-                alert('3D模型加载失败！检查：1.文件名是否正确 2.模型是否在同一文件夹 3.格式是否为GLTF/GLB');
             }
         );
 
-        // 6. 设置相机位置（决定初始视角）
-        camera.position.z = 3;
-        camera.position.y = 1; // 稍微俯视模型，更自然
-
-        // 7. 重置视角函数（加分项）
-        window.resetCamera = function() {
-            camera.position.set(0, 1, 3); // 初始位置
-            controls.reset(); // 重置控制器
+        // 7. 响应式适配（窗口大小变化时更新）
+        window.addEventListener('resize', onWindowResize);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // 8. 动画循环（保证3D交互流畅）
+        // 8. 动画循环
         function animate() {
             requestAnimationFrame(animate);
             controls.update(); // 更新控制器
             renderer.render(scene, camera);
         }
         animate();
-
-        // 9. 窗口自适应（手机/电脑都能适配）
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // 10. 初始化滑动介绍页
-        const swiper = new Swiper('.swiper-container', {
-            loop: true, // 循环滑动
-            pagination: {
-                el: '.swiper-pagination', // 指示器位置
-                clickable: true, // 点击指示器切换
-            },
-            autoplay: {
-                delay: 5000, // 自动切换间隔
-                disableOnInteraction: false, // 手动滑动后仍自动播放
-            },
-        });
     </script>
 </body>
 </html>
