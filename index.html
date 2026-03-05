@@ -2,7 +2,6 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <!-- 关键：添加视口适配，解决手机端布局问题 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>子乍弄鸟尊 3D 展示</title>
     <style>
@@ -22,14 +21,39 @@
             width: 100vw;
             height: 100vh;
         }
+        /* 加载提示 */
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 16px;
+            color: #333;
+            z-index: 100;
+        }
+        /* 错误提示 */
+        #error {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 14px;
+            color: #ff4444;
+            text-align: center;
+            padding: 20px;
+            z-index: 100;
+            display: none;
+        }
     </style>
-    <!-- 引入 Three.js -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- 替换为更稳定的 CDN 链接 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/loaders/GLTFLoader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/controls/OrbitControls.min.js"></script>
 </head>
 <body>
     <div id="canvas-container"></div>
+    <div id="loading">正在加载3D模型，请稍候...</div>
+    <div id="error">模型加载失败<br>请检查网络或刷新页面重试</div>
 
     <script>
         // 1. 创建场景
@@ -38,28 +62,27 @@
 
         // 2. 创建相机（优化手机端视角）
         const camera = new THREE.PerspectiveCamera(
-            75, // 视角
-            window.innerWidth / window.innerHeight, // 宽高比
-            0.1, // 近裁剪面
-            1000 // 远裁剪面
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
         );
-        // 调整相机位置，确保看向模型中心
-        camera.position.set(0, 1, 5); // 手机端合适的初始位置
-        camera.lookAt(0, 0, 0); // 强制相机看向坐标原点
+        camera.position.set(0, 1, 5);
+        camera.lookAt(0, 0, 0);
 
         // 3. 创建渲染器
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio); // 适配手机像素
+        renderer.setPixelRatio(window.devicePixelRatio);
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // 4. 添加轨道控制器（支持旋转/缩放）
+        // 4. 添加轨道控制器
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; // 平滑阻尼效果
+        controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.target.set(0, 0, 0); // 控制器围绕原点旋转
-        controls.minDistance = 2; // 最小缩放距离
-        controls.maxDistance = 10; // 最大缩放距离
+        controls.target.set(0, 0, 0);
+        controls.minDistance = 2;
+        controls.maxDistance = 10;
 
         // 5. 添加光源
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -68,38 +91,50 @@
         directionalLight.position.set(5, 5, 5);
         scene.add(directionalLight);
 
-        // 6. 加载GLB模型（核心：强制居中）
+        // 6. 加载GLB模型（修复 Box3 问题 + 增加加载状态）
         const loader = new THREE.GLTFLoader();
-        loader.load(
-            '子乍弄鸟尊.glb', // 模型文件路径
-            function (gltf) {
-                const model = gltf.scene;
-                
-                // 关键：重置模型位置到坐标原点
-                model.position.set(0, 0, 0);
-                model.rotation.set(0, 0, 0); // 重置旋转
-                model.scale.set(1, 1, 1); // 重置缩放
+        // 设置超时时间（避免无限等待）
+        const loadTimeout = setTimeout(() => {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+        }, 30000); // 30秒超时
 
-                // 可选：自动调整模型大小（防止模型过大/过小）
-                const box = new THREE.Box3().setFromObject(model);
-                const size = box.getSize(new THREE.Vector3());
+        loader.load(
+            '子乍弄鸟尊.glb',
+            function (gltf) {
+                clearTimeout(loadTimeout); // 清除超时
+                document.getElementById('loading').style.display = 'none';
+                
+                const model = gltf.scene;
+                model.position.set(0, 0, 0);
+                model.rotation.set(0, 0, 0);
+                model.scale.set(1, 1, 1);
+
+                // 修复 Box3 初始化问题
+                const box = new THREE.Box3();
+                box.setFromObject(model);
+                const size = new THREE.Vector3();
+                box.getSize(size);
                 const maxSize = Math.max(size.x, size.y, size.z);
-                const scale = 2 / maxSize; // 统一缩放至合适大小
+                const scale = 2 / maxSize;
                 model.scale.set(scale, scale, scale);
 
                 scene.add(model);
             },
             function (xhr) {
-                // 加载进度
-                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+                // 显示加载进度
+                const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                document.getElementById('loading').innerText = `正在加载3D模型：${percent}%`;
             },
             function (error) {
-                // 加载错误
+                clearTimeout(loadTimeout);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
                 console.error('模型加载失败：', error);
             }
         );
 
-        // 7. 响应式适配（窗口大小变化时更新）
+        // 7. 响应式适配
         window.addEventListener('resize', onWindowResize);
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -110,7 +145,7 @@
         // 8. 动画循环
         function animate() {
             requestAnimationFrame(animate);
-            controls.update(); // 更新控制器
+            controls.update();
             renderer.render(scene, camera);
         }
         animate();
